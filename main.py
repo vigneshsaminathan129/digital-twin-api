@@ -16,30 +16,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Templates folder
 templates = Jinja2Templates(directory="templates")
 
-# Google Sheet URL + Worksheet name
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio/edit?usp=sharing"
+# Correct Google Sheet URL (NO ?usp=sharing)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio"
 WORKSHEET_NAME = "Copy of No CGM >2D - Vig, Vin"
 
-
 def fetch_sheet():
-    """
-    Load Google Sheet safely.
-    Render sometimes kills the app if an exception is not caught.
-    """
     try:
         creds = Credentials.from_service_account_file("credentials.json")
         gc = gspread.authorize(creds)
+
         sh = gc.open_by_url(SHEET_URL)
         ws = sh.worksheet(WORKSHEET_NAME)
         data = ws.get_all_values()
 
         df = pd.DataFrame(data)
-        df.columns = df.iloc[0]  # first row = header
-        df = df[1:]               # remove header row
-
+        df.columns = df.iloc[0]
+        df = df[1:]
         return df
 
     except Exception as e:
@@ -47,17 +41,11 @@ def fetch_sheet():
         return None
 
 
-# -----------------------------
-# HOME PAGE
-# -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
-# -----------------------------
-# GET COACH LIST
-# -----------------------------
 @app.get("/coaches")
 def get_coaches():
     df = fetch_sheet()
@@ -65,7 +53,6 @@ def get_coaches():
     if df is None:
         return JSONResponse({"error": "Failed to load Google Sheet"}, status_code=500)
 
-    # Column E = "Coach"
     if "Coach" not in df.columns:
         return {"error": "Column 'Coach' not found"}
 
