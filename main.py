@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import gspread
@@ -19,22 +19,55 @@ app.add_middleware(
 # Templates folder
 templates = Jinja2Templates(directory="templates")
 
-# Google Sheet auth
-def fetch_sheet():
-    creds = Credentials.from_service_account_file("credentials.json")
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio/edit?usp=sharing")
-    ws = sh.worksheet("Copy of No CGM >2D - Vig, Vin")
-    data = ws.get_all_values()
-    df = pd.DataFrame(data)
-    return df
+# Google Sheet URL + Worksheet name
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio/edit?usp=sharing"
+WORKSHEET_NAME = "Copy of No CGM >2D - Vig, Vin"
 
+
+def fetch_sheet():
+    """
+    Load Google Sheet safely.
+    Render sometimes kills the app if an exception is not caught.
+    """
+    try:
+        creds = Credentials.from_service_account_file("credentials.json")
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_url(SHEET_URL)
+        ws = sh.worksheet(WORKSHEET_NAME)
+        data = ws.get_all_values()
+
+        df = pd.DataFrame(data)
+        df.columns = df.iloc[0]  # first row = header
+        df = df[1:]               # remove header row
+
+        return df
+
+    except Exception as e:
+        print("ERROR loading sheet:", e)
+        return None
+
+
+# -----------------------------
+# HOME PAGE
+# -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
+
+# -----------------------------
+# GET COACH LIST
+# -----------------------------
 @app.get("/coaches")
 def get_coaches():
     df = fetch_sheet()
-    coaches = sorted(list(set(df[4].tolist()[1:])))
+
+    if df is None:
+        return JSONResponse({"error": "Failed to load Google Sheet"}, status_code=500)
+
+    # Column E = "Coach"
+    if "Coach" not in df.columns:
+        return {"error": "Column 'Coach' not found"}
+
+    coaches = sorted(list(df["Coach"].dropna().unique()))
     return {"coaches": coaches}
