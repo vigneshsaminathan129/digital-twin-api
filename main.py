@@ -24,28 +24,31 @@ WORKSHEET_NAME = "Copy of No CGM >2D - Vig, Vin"
 
 def fetch_sheet():
     try:
+        print("STEP 1: Loading credentials.json...")
         creds = Credentials.from_service_account_file("credentials.json")
+
+        print("STEP 2: Authorizing client...")
         gc = gspread.authorize(creds)
 
+        print("STEP 3: Opening Google Sheet URL...")
         sh = gc.open_by_url(SHEET_URL)
+
+        print("STEP 4: Opening worksheet...")
         ws = sh.worksheet(WORKSHEET_NAME)
+
+        print("STEP 5: Reading data...")
         data = ws.get_all_values()
 
         df = pd.DataFrame(data)
         df.columns = df.iloc[0]
         df = df[1:]
+
+        print("SUCCESS: Sheet loaded.")
         return df
 
     except Exception as e:
-        print("ERROR loading sheet:", e)
+        print("🔥 GOOGLE SHEET ERROR:", e)
         return None
-
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
-
-
 @app.get("/coaches")
 def get_coaches():
     df = fetch_sheet()
