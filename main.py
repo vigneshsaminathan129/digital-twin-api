@@ -18,25 +18,31 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory="templates")
 
-# Correct Google Sheet URL (NO ?usp=sharing)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1Kjo-jfEYdPc_KFoCa4kL_UtBrochTiBLFFYiPQ88lio/edit?usp=sharing"
 WORKSHEET_NAME = "Copy of No CGM >2D - Vig, Vin"
+
+# REQUIRED SCOPES FIX
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
 
 def fetch_sheet():
     try:
         print("STEP 1: Loading credentials.json...")
-        creds = Credentials.from_service_account_file("credentials.json")
+        creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
 
-        print("STEP 2: Authorizing client...")
+        print("STEP 2: Authorizing gspread client...")
         gc = gspread.authorize(creds)
 
-        print("STEP 3: Opening Google Sheet URL...")
+        print("STEP 3: Opening sheet URL...")
         sh = gc.open_by_url(SHEET_URL)
 
         print("STEP 4: Opening worksheet...")
         ws = sh.worksheet(WORKSHEET_NAME)
 
-        print("STEP 5: Reading data...")
+        print("STEP 5: Reading values...")
         data = ws.get_all_values()
 
         df = pd.DataFrame(data)
@@ -49,6 +55,13 @@ def fetch_sheet():
     except Exception as e:
         print("🔥 GOOGLE SHEET ERROR:", e)
         return None
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
 @app.get("/coaches")
 def get_coaches():
     df = fetch_sheet()
